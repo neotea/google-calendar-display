@@ -6,58 +6,84 @@
         padding: 0;
         margin: 0;
         font-size: 24px;
+        min-width: 50%;
+        border-collapse: collapse;
     }
     body {
         padding: 20px;
     }
     a {
         text-decoration: none;
-        color: #0aaae7;
+        color: #1c2442;
+        font-weight: bold;
+
+    }
+    tr {
+        margin: 10px;
+        border: 1px solid white;
+        width: 60%;
+
     }
     th, td {
         text-align: left;
-        padding: 5px;
+        padding: 25px;
         padding-right: 20px;
+        margin: 10px;
     }
     .busy {
-        color: #f33;
+        color: white;
         font-weight: bold;
+        background-color: red;
     }
     .free {
-        color: #363;
+        color: white;
+        background-color: green;
     }
     .upcoming {
-        color: #f33;
+        color: white;
+        background-color: orange;
+    }
+    .datetime {
+        width: 60%;
+        position: absolute;
+        left: 20px;
+        bottom: 20px;
+        font-size: 28px;
+        opacity: 0.5;
     }
 </style>
 
+<script type="text/javascript">
+setTimeout("document.location.reload();",60000);
+</script>
+
 <body>
 
-<h1>Calendar dashboard</h1>
+<h1>Meetingroom Dashboard</h1>
 
 <table>
-    <tr>
-      <td colspan="2">{{ now }} </td>
-    </tr>
     {% for event in events %}
-        <tr>
+        <tr class="busy">
           <td><b><a href='/{{ event['room']|urlencode }}'>{{ event['room'] }}</a></b></td>
           <td class="busy">Booked now until {{ event['end'] }}</td>
         </tr>
     {% endfor %}
     {% for event in upcoming %}
-        <tr>
+        <tr class="upcoming">
           <td><b><a href='/{{ event['room']|urlencode }}'>{{ event['room'] }}</a></b></td>
           <td class="upcoming">Booked from {{ event['start'] }} until {{ event['end'] }}</td>
         </tr>
     {% endfor %}
     {% for room in free_rooms %}
-        <tr>
+        <tr class="free">
           <td><a href='/{{ room|urlencode }}'>{{ room }}</a></td>
-          <td class="free"></td>
+          <td class="free">FREE</td>
         </tr>
     {% endfor %}
 </table>
+<div class="datetime">
+    {{ now }}
+</div>
 
 </body>
 </html>
