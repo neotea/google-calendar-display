@@ -94,6 +94,7 @@ def calendars():
     upcoming = []
 
     now = de.localize(datetime.now()) + timedelta(hours=8)
+    print(now)
     start_time = now - timedelta(hours=8)
     end_time = start_time + timedelta(hours=8)
 
@@ -118,7 +119,8 @@ def calendars():
             busy = data['busy'][0]
             start = dateutil.parser.parse(busy['start']) + timedelta(hours=1)
             end = dateutil.parser.parse(busy['end']) + timedelta(hours=1)
-            diff = start - (now + timedelta(hours=2))
+            diff = start - (now - timedelta(hours=7))
+            print(diff)
 
             event = {'room': calendars[calendar],
                      'start': start.strftime("%l:%M%p"),
