@@ -9,7 +9,7 @@ import httplib2
 from apiclient.discovery import build
 from oauth2client.file import Storage
 from oauth2client.client import OAuth2WebServerFlow
-from oauth2client.tools import run
+from oauth2client.tools import run_flow
 
 from datetime import datetime
 from datetime import timedelta
@@ -53,7 +53,7 @@ FLOW = OAuth2WebServerFlow(
 storage = Storage('calendar.dat')
 credentials = storage.get()
 if credentials is None or credentials.invalid == True:
-  credentials = run(FLOW, storage)
+  credentials = run_flow(FLOW, storage)
 
 # Create an httplib2.Http object to handle our HTTP requests and authorize it
 # with our good Credentials.
@@ -67,7 +67,7 @@ service = build(serviceName='calendar', version='v3', http=http,
        developerKey=calendar_config.DEVELOPER_KEY)
 
 la = pytz.timezone("America/Los_Angeles")
-
+de = pytz.timezone("Europe/Berlin")
 def create_time_string(dt):
     if not dt:
         return None
@@ -93,23 +93,23 @@ def calendars():
     events = []
     upcoming = []
 
-    now = la.localize(datetime.now())
+    now = de.localize(datetime.now())
     start_time = now - timedelta(hours=8)
     end_time = start_time + timedelta(hours=8)
 
     calendar_list = service.calendarList().list().execute()
     for calendar_list_entry in calendar_list['items']:
-        if calendar_list_entry['id'] not in calendar_config.EXCLUSIONS:
-            calendars[calendar_list_entry['id']] = calendar_list_entry['summary']
-            items.append({'id': calendar_list_entry['id']})
-            free_rooms.append(calendar_list_entry['id'])
+        if calendar_list_entry['id'] in calendar_config.CALENDAR_IDS:
+        	calendars[calendar_list_entry['id']] = calendar_list_entry['summary']
+        	items.append({'id': calendar_list_entry['id']})
+        	free_rooms.append(calendar_list_entry['id'])
 
     # store this to a local file
     with open('calendars.json', mode='w') as calendar_file:
         json.dump({value: key for key, value in calendars.items()}, calendar_file)
 
-    free_busy = service.freebusy().query(body={"timeMin": start_time.isoformat(), 
-        "timeMax": end_time.isoformat(), 
+    free_busy = service.freebusy().query(body={"timeMin": start_time.isoformat(),
+        "timeMax": end_time.isoformat(),
         "items":items}).execute()
 
     for calendar in free_busy['calendars']:
@@ -120,8 +120,8 @@ def calendars():
             end = dateutil.parser.parse(busy['end']) - timedelta(hours=8)
             diff = start - (now - timedelta(hours=16))
 
-            event = {'room': calendars[calendar], 
-                     'start': start.strftime("%l:%M%p"), 
+            event = {'room': calendars[calendar],
+                     'start': start.strftime("%l:%M%p"),
                      'end': end.strftime("%l:%M%p")}
 
             if diff < timedelta(minutes=5):
@@ -131,8 +131,8 @@ def calendars():
                 upcoming.append(event)
                 free_rooms.remove(calendar)
 
-    return render_template('calendars.html', 
-                           events=events, 
+    return render_template('calendars.html',
+                           events=events,
                            upcoming=upcoming,
                            now=start_time.strftime("%A %e %B %Y, %l:%M%p"),
                            free_rooms=[calendars[f] for f in free_rooms])
@@ -140,9 +140,9 @@ def calendars():
 def get_events(room_name):
     items = []
     now = datetime.utcnow()
-
-    la_offset = la.utcoffset(datetime.utcnow())
-    now = now + la_offset
+    la_offset = de.utcoffset(datetime.utcnow())
+    print(la_offset)
+    now = now  + la_offset
 
     start_time = datetime(year=now.year, month=now.month, day=now.day, tzinfo=la)
     end_time = start_time + timedelta(days=1)
@@ -155,8 +155,8 @@ def get_events(room_name):
         calendars = {}
         calendar_list = service.calendarList().list().execute()
         for calendar_list_entry in calendar_list['items']:
-            if calendar_list_entry['id'] not in calendar_config.EXCLUSIONS:
-                calendars[calendar_list_entry['id']] = calendar_list_entry['summary']
+            if calendar_list_entry['id'] in calendar_config.CALENDAR_IDS:
+            	calendars[calendar_list_entry['id']] = calendar_list_entry['summary']
 
         # store this to a local file
         with open('calendars.json', mode='w') as calendar_file:
@@ -180,16 +180,25 @@ def get_events(room_name):
     status = "FREE"
 
     for event in events['items']:
-        start = dateutil.parser.parse(event['start']['dateTime']).replace(tzinfo=None)
-        end = dateutil.parser.parse(event['end']['dateTime']).replace(tzinfo=None)
-
+        start = dateutil.parser.parse(event['start']['dateTime']).replace(tzinfo=None) + timedelta(hours=9)
+        end = dateutil.parser.parse(event['end']['dateTime']).replace(tzinfo=None) +timedelta(hours=9)
+#	print(events)
+#	print(start)
+#	print(end)
         if now <= end:
-            items.append({'name': event['summary'], 
-                'creator': event['creator']['displayName'], 
-                'start': start.strftime("%l:%M%p"), 
-                'end': end.strftime("%l:%M%p"),
-                })
- 
+            if 'summary' in event.keys():
+                items.append({'name': event['summary'],
+                    'creator': event['creator']['email'],
+                    'start': start.strftime("%l:%M%p"),
+                    'end': end.strftime("%l:%M%p"),
+                    })
+            else:
+                items.append({'name': 'blocked',
+                    'creator': event['creator'] ['email'],
+                    'start': start.strftime("%l:%M%p"),
+                    'end': end.strftime("%l:%M%p"),
+                    })
+
             if start < now and end > now:
                 status = "BUSY"
                 next_end = end - now
@@ -204,22 +213,22 @@ def get_events(room_name):
     if status == "FREE" and next_start and next_start < timedelta(minutes=15):
         status = "SOON"
 
-    return {'room': events['summary'], 
-        'status': status, 
-        'now': now.strftime("%A %e %B %Y, %l:%M%p"), 
-        'events': items, 
-        'next_start_str': next_start_str, 
+    return {'room': events['summary'],
+        'status': status,
+        'now': now.strftime("%A %e %B %Y, %l:%M%p"),
+        'events': items,
+        'next_start_str': next_start_str,
         'next_end_str': next_end_str}
 
 @app.route('/index/<room_name>')
 def index(room_name=None):
     events = get_events(room_name)
 
-    return render_template('index.html', 
-        status=events['status'], 
-        events=events['events'], 
-        next_start_str=events['next_start_str'], 
-        next_end_str=events['next_end_str'], 
+    return render_template('index.html',
+        status=events['status'],
+        events=events['events'],
+        next_start_str=events['next_start_str'],
+        next_end_str=events['next_end_str'],
         now=events['now'],
         room=room_name
     )
